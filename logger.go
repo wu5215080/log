@@ -1,6 +1,7 @@
 package log
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"runtime"
@@ -25,11 +26,12 @@ const (
 	Ltime  = 1 << iota //time format "2006/01/02 15:04:05"
 	Lfile              //file.go:123
 	Llevel             //[Trace|Debug|Info...]
+	LID
 )
 
 var LevelName [6]string = [6]string{"Trace", "Debug", "Info", "Warn", "Error", "Fatal"}
 
-const TimeFormat = "2006-01-02 15:04:05"
+const TimeFormat = "2006-01-02 15:04:05:010"
 
 const maxBufPoolSize = 16
 
@@ -85,7 +87,7 @@ func New(handler Handler, flag int) *Logger {
 
 //new a default logger with specified handler and flag: Ltime|Lfile|Llevel
 func NewDefault(handler Handler) *Logger {
-	return New(handler, Ltime|Lfile|Llevel)
+	return New(handler, Ltime|Lfile|Llevel|LID)
 }
 
 func newStdHandler() *StreamHandler {
@@ -188,6 +190,16 @@ func (l *Logger) SetHandler(h Handler) {
 	l.hMutex.Unlock()
 }
 
+//GetGoroutineID 获取协程号
+func GetGoroutineID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
+}
+
 func (l *Logger) Output(callDepth int, level int, s string) {
 	if l.closed.Get() == 1 {
 		// closed
@@ -206,6 +218,13 @@ func (l *Logger) Output(callDepth int, level int, s string) {
 		now := time.Now().Format(TimeFormat)
 		buf = append(buf, '[')
 		buf = append(buf, now...)
+		buf = append(buf, "] "...)
+	}
+
+	if l.flag&LID > 0 {
+		Gid := fmt.Sprintf("%d", GetGoroutineID())
+		buf = append(buf, '[')
+		buf = append(buf, Gid...)
 		buf = append(buf, "] "...)
 	}
 
