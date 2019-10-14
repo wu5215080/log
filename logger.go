@@ -31,7 +31,7 @@ const (
 
 var LevelName [6]string = [6]string{"Trace", "Debug", "Info", "Warn", "Error", "Fatal"}
 
-const TimeFormat = "2006-01-02 15:04:05:010"
+const TimeFormat = "2006-01-02 15:04:05.999999999"
 
 const maxBufPoolSize = 16
 
