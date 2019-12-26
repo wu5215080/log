@@ -125,6 +125,8 @@ type TimeRotatingFileHandler struct {
 	interval   int64
 	suffix     string
 	rolloverAt int64
+	maxBytes   int64
+	when 	   int8
 }
 
 const (
@@ -141,6 +143,9 @@ func NewTimeRotatingFileHandler(baseName string, when int8, interval int) (*Time
 	h := new(TimeRotatingFileHandler)
 
 	h.baseName = baseName
+	h.when = when
+
+	h.maxBytes = 1024*1024*50
 
 	switch when {
 	case WhenSecond:
@@ -202,7 +207,35 @@ func (h *TimeRotatingFileHandler) doRollover() {
 		h.fd, _ = os.OpenFile(h.baseName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 
 		h.rolloverAt = time.Now().Unix() + h.interval
+		return
 	}
+
+	f, err := h.fd.Stat()
+	if err != nil {
+		return
+	}
+
+	if f.Size() < int64(h.maxBytes) {
+		return
+	}
+
+	// 先按时间日期切割再按文件大小切割
+	var strSuffix string
+	switch h.when {
+	case WhenDay:
+		strSuffix =  "-" + strconv.Itoa(now.Hour()) + "-" + strconv.Itoa(now.Minute()) + "-" + strconv.Itoa(now.Second())
+	case WhenHour:
+		strSuffix =  "-" + strconv.Itoa(now.Minute()) + "-" + strconv.Itoa(now.Second())
+	}
+
+	fName := h.baseName + "." + now.Format(h.suffix) + strSuffix
+	h.fd.Close()
+	e := os.Rename(h.baseName, fName)
+	if e != nil {
+		panic(e)
+	}
+
+	h.fd, _ = os.OpenFile(h.baseName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 }
 
 func (h *TimeRotatingFileHandler) Write(b []byte) (n int, err error) {
